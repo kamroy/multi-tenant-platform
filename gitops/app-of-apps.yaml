@@ -1,0 +1,55 @@
+# Pattern "app-of-apps" : cette Application ArgoCD racine génère
+# automatiquement une Application par tenant, en scannant le dossier tenants/.
+# Ajouter un nouveau tenant = ajouter un dossier + push. Rien d'autre.
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: tenants
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/<ton-user>/multi-tenant-platform.git
+        revision: main
+        directories:
+          - path: tenants/*
+  template:
+    metadata:
+      name: 'tenant-{{path.basename}}'
+      labels:
+        platform.io/type: tenant
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/<ton-user>/multi-tenant-platform.git
+        targetRevision: main
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{path.basename}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=false   # le namespace est défini dans 00-namespace.yaml
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-policies
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/<ton-user>/multi-tenant-platform.git
+    targetRevision: main
+    path: gitops/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kyverno
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

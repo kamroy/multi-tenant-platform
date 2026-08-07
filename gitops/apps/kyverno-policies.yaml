@@ -1,0 +1,77 @@
+# Policies de plateforme appliquées à tous les tenants.
+# Nécessite Kyverno installé (helm install kyverno kyverno/kyverno -n kyverno)
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resource-limits
+  annotations:
+    policies.kyverno.io/title: Require resource limits
+    policies.kyverno.io/severity: high
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: check-resource-limits
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+              namespaces: ["team-*"]
+      validate:
+        message: "Chaque conteneur doit définir des limites CPU et mémoire."
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  limits:
+                    cpu: "?*"
+                    memory: "?*"
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-latest-tag
+  annotations:
+    policies.kyverno.io/title: Disallow ':latest' image tag
+    policies.kyverno.io/severity: medium
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-image-tag
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+              namespaces: ["team-*"]
+      validate:
+        message: "L'usage du tag ':latest' est interdit — utiliser un tag versionné."
+        pattern:
+          spec:
+            containers:
+              - image: "!*:latest"
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-non-root
+  annotations:
+    policies.kyverno.io/title: Require non-root containers
+    policies.kyverno.io/severity: high
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: check-non-root
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+              namespaces: ["team-*"]
+      validate:
+        message: "Les conteneurs doivent s'exécuter en tant qu'utilisateur non-root."
+        pattern:
+          spec:
+            securityContext:
+              runAsNonRoot: true
