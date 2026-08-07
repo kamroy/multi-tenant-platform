@@ -1,7 +1,7 @@
 # Design Doc — Multi-Tenant Platform
 
 **Statut** : Draft
-**Auteur** : [ton nom]
+**Auteur** : Romeo KAMENI
 **Date** : 2026-08
 
 ## 1. Contexte et problème

@@ -10,7 +10,7 @@ metadata:
 spec:
   generators:
     - git:
-        repoURL: https://github.com/<ton-user>/multi-tenant-platform.git
+        repoURL: https://github.com/kamroy/multi-tenant-platform.git
         revision: main
         directories:
           - path: tenants/*
@@ -22,7 +22,7 @@ spec:
     spec:
       project: default
       source:
-        repoURL: https://github.com/<ton-user>/multi-tenant-platform.git
+        repoURL: https://github.com/kamroy/multi-tenant-platform.git
         targetRevision: main
         path: '{{path}}'
       destination:
@@ -43,7 +43,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/<ton-user>/multi-tenant-platform.git
+    repoURL: https://github.com/kamroy/multi-tenant-platform.git
     targetRevision: main
     path: gitops/apps
   destination:
