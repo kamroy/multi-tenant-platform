@@ -35,17 +35,16 @@ options envisagées et les trade-offs.
 | Domaine | Outil | Rôle |
 |---|---|---|
 | Cluster local | k3s (WSL) | Environnement de démo léger |
-| CNI | Flannel + contrôleur NetworkPolicy natif de k3s (kube-router) | Application effective des NetworkPolicies sans CNI additionnel |
+| CNI | Cilium (eBPF), Flannel désactivé | Application effective des NetworkPolicies |
 | GitOps | ArgoCD (ApplicationSet, pattern app-of-apps) | Déploiement déclaratif par tenant |
 | Policy-as-code | Kyverno | Blocage des workloads non conformes (root, `:latest`, sans limits) |
 | Observabilité | kube-prometheus-stack (config allégée) | Dashboards par tenant |
 | IaC | YAML déclaratif | Namespace, ResourceQuota, NetworkPolicy, RBAC |
 
-> **Note CNI** : contrairement à `kind`, k3s embarque par défaut un
-> contrôleur NetworkPolicy (basé sur kube-router) même avec Flannel.
-> Pas besoin d'installer Calico — vérifier simplement qu'il tourne avec
-> `kubectl get pods -n kube-system | grep network-policy`. Il n'est absent
-> que si k3s a été installé avec `--disable-network-policy`.
+> **Note CNI** : ce cluster utilise Cilium (eBPF) avec Flannel désactivé au
+> niveau k3s (`--flannel-backend=none`). L'enforcement des NetworkPolicies
+> a été validé empiriquement : un pod avec policy `deny-all` bloque
+> effectivement le trafic entrant (`wget` timeout attendu).
 
 ## Démarrage rapide
 
@@ -80,6 +79,32 @@ Les choix structurants sont documentés en ADR :
 
 - [ADR-0001](docs/adr/0001-namespace-based-tenancy.md) — Isolation par
   namespace plutôt que par cluster dédié
+- [ADR-0002](docs/adr/0002-chaos-engineering-proactif.md) — Chaos
+  engineering proactif plutôt que réactif
+- [ADR-0003](docs/adr/0003-cilium-cni.md) — Cilium comme CNI, en
+  remplacement de Flannel, validé empiriquement
+
+## Module résilience : Chaos Engineering & SLOs
+
+Extension qui valide empiriquement que les tenants survivent aux pannes,
+et pas seulement qu'ils sont isolés les uns des autres.
+
+➡️ Voir le [design doc dédié](docs/design-doc-resilience.md) pour le détail
+des SLO, de la politique d'error budget et des expériences.
+
+| Composant | Rôle |
+|---|---|
+| Chaos Mesh | Injection de pannes (pod-kill, network-delay, network-loss) |
+| Prometheus recording rules | Calcul des SLI (disponibilité, latence) et de l'error budget par tenant |
+| CronJob error-budget-policy | Ferme la boucle : suspend automatiquement les expériences à fort impact quand le budget descend sous 50%, toutes sous 10% |
+| Dashboard Grafana | Disponibilité, error budget restant, burn rate, latence p95 — par tenant |
+
+Ce module réutilise l'infra existante : les expériences ciblent le
+`demo-api` de team-a (avec label opt-in `chaos-target: "true"`, jamais tout
+le namespace par défaut), et sont déployées en GitOps comme le reste.
+
+**Prérequis additionnel** : ingress-nginx et Chaos Mesh, tous deux installés
+par `scripts/bootstrap.sh`.
 
 ## Ce que je ferais différemment à l'échelle
 
@@ -94,9 +119,10 @@ Les choix structurants sont documentés en ADR :
 
 ```
 .
-├── docs/                # Design doc + ADRs
-├── infra/                # Config du cluster kind
-├── tenants/               # Un dossier par tenant (namespace, quota, netpol, rbac)
-├── gitops/                # ApplicationSet ArgoCD + policies Kyverno
+├── docs/                # Design docs + ADRs
+├── tenants/               # Un dossier par tenant (namespace, quota, netpol, rbac, workload)
+├── gitops/                # ApplicationSet ArgoCD + policies Kyverno + apps chaos/SLO
+├── chaos/experiments/      # Expériences Chaos Mesh (pod-kill, network-delay, network-loss)
+├── slo/                   # Recording rules Prometheus, dashboard Grafana, error budget policy
 └── scripts/               # Bootstrap automatisé
 ```

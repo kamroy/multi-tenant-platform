@@ -1,0 +1,71 @@
+# Recording rules Prometheus : calculent les SLI par tenant à partir des
+# métriques déjà exposées par kube-prometheus-stack / ingress-nginx.
+# À déployer comme PrometheusRule (CRD du kube-prometheus-stack).
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: tenant-slo-rules
+  namespace: platform
+  labels:
+    release: monitoring   # requis pour être repris par l'Operator Prometheus
+spec:
+  groups:
+    - name: tenant-availability-sli
+      interval: 30s
+      rules:
+        # Ratio de requêtes réussies (non-5xx) sur le total, par namespace tenant
+        - record: tenant:sli_availability:ratio_rate5m
+          expr: |
+            sum by (namespace) (
+              rate(nginx_ingress_controller_requests{status!~"5.."}[5m])
+            )
+            /
+            sum by (namespace) (
+              rate(nginx_ingress_controller_requests[5m])
+            )
+
+        # Burn rate : vitesse à laquelle l'error budget est consommé.
+        # burn_rate = 1 -> le budget mensuel serait épuisé exactement en 30 jours
+        # burn_rate > 1 -> on consomme plus vite que le budget alloué
+        - record: tenant:slo_availability_burn_rate:ratio_rate1h
+          expr: |
+            (1 - tenant:sli_availability:ratio_rate5m)
+            /
+            (1 - 0.995)   # SLO cible = 99.5% (voir design-doc-resilience.md)
+
+    - name: tenant-latency-sli
+      interval: 30s
+      rules:
+        # p95 de latence par namespace tenant
+        - record: tenant:sli_latency_p95:5m
+          expr: |
+            histogram_quantile(0.95,
+              sum by (namespace, le) (
+                rate(nginx_ingress_controller_request_duration_seconds_bucket[5m])
+              )
+            )
+
+        # Ratio de requêtes sous le seuil de 300ms (SLO latence)
+        - record: tenant:sli_latency_good:ratio_rate5m
+          expr: |
+            sum by (namespace) (
+              rate(nginx_ingress_controller_request_duration_seconds_bucket{le="0.3"}[5m])
+            )
+            /
+            sum by (namespace) (
+              rate(nginx_ingress_controller_request_duration_seconds_count[5m])
+            )
+
+    - name: tenant-error-budget
+      interval: 1m
+      rules:
+        # Error budget restant sur la fenêtre de 30 jours, en pourcentage.
+        # 100% = aucun budget consommé, 0% = budget épuisé.
+        - record: tenant:error_budget_remaining:ratio30d
+          expr: |
+            1 - (
+              (1 - avg_over_time(tenant:sli_availability:ratio_rate5m[30d]))
+              /
+              (1 - 0.995)
+            )

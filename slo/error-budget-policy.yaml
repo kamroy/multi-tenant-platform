@@ -1,0 +1,101 @@
+# Ferme la boucle "chaos -> mesure -> décision" : interroge Prometheus
+# toutes les 10 minutes pour connaître l'error budget restant de team-a,
+# et applique la politique définie dans docs/design-doc-resilience.md
+# section 6 en suspendant/réactivant les CRDs Chaos Mesh via kubectl patch.
+#
+# C'est la pièce qui distingue "on a un dashboard de fiabilité" de
+# "le système réagit automatiquement à sa propre fiabilité mesurée".
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: error-budget-policy
+  namespace: chaos-mesh
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: error-budget-policy
+rules:
+  - apiGroups: ["chaos-mesh.org"]
+    resources: ["podchaos", "networkchaos"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: error-budget-policy
+subjects:
+  - kind: ServiceAccount
+    name: error-budget-policy
+    namespace: chaos-mesh
+roleRef:
+  kind: ClusterRole
+  name: error-budget-policy
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: error-budget-policy-script
+  namespace: chaos-mesh
+data:
+  check.sh: |
+    #!/bin/sh
+    set -eu
+
+    PROM_URL="http://monitoring-kube-prometheus-prometheus.platform.svc:9090"
+    TENANT="team-a"
+
+    # Récupère l'error budget restant (en %) pour le tenant
+    BUDGET=$(curl -sf "${PROM_URL}/api/v1/query?query=tenant:error_budget_remaining:ratio30d%7Bnamespace=%22${TENANT}%22%7D" \
+      | grep -o '"value":\[[0-9.]*,"[0-9.]*"\]' \
+      | sed 's/.*,"\(.*\)"\]/\1/' || echo "1")
+
+    echo "Error budget restant pour ${TENANT} : ${BUDGET}"
+
+    # Convertit en pourcentage entier pour la comparaison shell
+    BUDGET_PCT=$(awk -v b="$BUDGET" 'BEGIN { printf "%d", b * 100 }')
+
+    if [ "$BUDGET_PCT" -lt 10 ]; then
+      echo "Budget < 10% : suspension de TOUTES les expériences de chaos"
+      kubectl patch podchaos "${TENANT}-pod-kill" -n "${TENANT}" --type merge -p '{"spec":{"scheduler":{"cron":"@yearly"}}}' || true
+      kubectl patch networkchaos "${TENANT}-network-delay" -n "${TENANT}" --type merge -p '{"spec":{"scheduler":{"cron":"@yearly"}}}' || true
+      kubectl patch networkchaos "${TENANT}-network-loss" -n "${TENANT}" --type merge -p '{"spec":{"scheduler":{"cron":"@yearly"}}}' || true
+    elif [ "$BUDGET_PCT" -lt 50 ]; then
+      echo "Budget entre 10% et 50% : suspension des expériences à fort impact uniquement"
+      kubectl patch podchaos "${TENANT}-pod-kill" -n "${TENANT}" --type merge -p '{"spec":{"scheduler":{"cron":"@yearly"}}}' || true
+      kubectl patch networkchaos "${TENANT}-network-delay" -n "${TENANT}" --type merge -p '{"spec":{"scheduler":{"cron":"@every 15m"}}}' || true
+      kubectl patch networkchaos "${TENANT}-network-loss" -n "${TENANT}" --type merge -p '{"spec":{"scheduler":{"cron":"@every 20m"}}}' || true
+    else
+      echo "Budget > 50% : toutes les expériences tournent normalement"
+      kubectl patch podchaos "${TENANT}-pod-kill" -n "${TENANT}" --type merge -p '{"spec":{"scheduler":{"cron":"@every 5m"}}}' || true
+      kubectl patch networkchaos "${TENANT}-network-delay" -n "${TENANT}" --type merge -p '{"spec":{"scheduler":{"cron":"@every 15m"}}}' || true
+      kubectl patch networkchaos "${TENANT}-network-loss" -n "${TENANT}" --type merge -p '{"spec":{"scheduler":{"cron":"@every 20m"}}}' || true
+    fi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: error-budget-policy
+  namespace: chaos-mesh
+spec:
+  schedule: "*/10 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: error-budget-policy
+          restartPolicy: OnFailure
+          containers:
+            - name: check
+              image: alpine/k8s:1.30.0
+              command: ["sh", "/scripts/check.sh"]
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+          volumes:
+            - name: script
+              configMap:
+                name: error-budget-policy-script
+                defaultMode: 0755

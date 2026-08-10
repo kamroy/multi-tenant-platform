@@ -1,0 +1,42 @@
+# Comme gitops/app-of-apps.yaml, ce fichier définit des Applications ArgoCD
+# (méta-niveau) et s'applique UNE FOIS manuellement (voir scripts/bootstrap.sh).
+# ArgoCD prend ensuite le relais en GitOps sur les dossiers chaos/ et slo/.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: chaos-experiments
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/kamroy/multi-tenant-platform.git
+    targetRevision: main
+    path: chaos/experiments
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: slo-rules
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/kamroy/multi-tenant-platform.git
+    targetRevision: main
+    path: slo
+    directory:
+      recurse: true   # nécessaire : slo/ contient des sous-dossiers (rules/, dashboards/)
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

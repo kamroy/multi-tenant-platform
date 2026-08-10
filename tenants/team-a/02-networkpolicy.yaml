@@ -67,3 +67,25 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
+---
+# 5. Autoriser le trafic entrant depuis ingress-nginx vers demo-api
+#    (nécessaire pour que l'Ingress fonctionne malgré le deny-all)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-nginx
+  namespace: team-a
+spec:
+  podSelector:
+    matchLabels:
+      app: demo-api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080

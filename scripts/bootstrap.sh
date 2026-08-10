@@ -4,13 +4,10 @@ set -euo pipefail
 # Bootstrap complet de la plateforme multi-tenant sur un cluster k3s local (WSL).
 # Prérequis : k3s déjà installé et démarré, kubectl, helm.
 #
-# Note CNI : contrairement à kind, k3s embarque un contrôleur NetworkPolicy
-# natif (basé sur kube-router) même avec Flannel comme CNI par défaut.
-# Pas besoin d'installer Calico — les NetworkPolicies de ce repo sont
-# effectives dès l'installation par défaut de k3s.
-# Si le contrôleur a été désactivé (--disable-network-policy au moment de
-# l'install), les NetworkPolicy seront créées mais silencieusement ignorées.
-# Vérifier avec : kubectl get pods -n kube-system | grep network-policy
+# Note CNI : ce cluster utilise Cilium (Flannel désactivé au niveau k3s),
+# validé empiriquement — un test deny-all/wget confirme que les
+# NetworkPolicies sont correctement enforced. Pas d'action CNI nécessaire
+# dans ce script.
 
 echo "==> 0. Vérification du cluster k3s"
 kubectl config current-context
@@ -19,6 +16,26 @@ kubectl get nodes
 echo "==> 1. Installation d'ArgoCD"
 kubectl create namespace argocd
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+echo "==> 1b. Installation d'ingress-nginx"
+# k3s installe Traefik par défaut. On installe ingress-nginx en plus (sans
+# désactiver Traefik) pour rester cohérent avec les recording rules SLO qui
+# utilisent les métriques nginx_ingress_controller_*. Traefik peut rester
+# actif en parallèle, il ne gère juste pas ce namespace.
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>/dev/null || true
+helm repo update
+kubectl create namespace ingress-nginx
+helm install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx \
+  --set controller.metrics.enabled=true \
+  --set controller.podLabels.kubernetes\\.io/metadata\\.name=ingress-nginx
+
+echo "==> 1c. Installation de Chaos Mesh"
+helm repo add chaos-mesh https://charts.chaos-mesh.org 2>/dev/null || true
+helm repo update
+kubectl create namespace chaos-mesh
+helm install chaos-mesh chaos-mesh/chaos-mesh -n chaos-mesh \
+  --set chaosDaemon.runtime=containerd \
+  --set chaosDaemon.socketPath=/run/k3s/containerd/containerd.sock
 
 echo "==> 2. Installation de Kyverno"
 helm repo add kyverno https://kyverno.github.io/kyverno/ 2>/dev/null || true
@@ -43,6 +60,9 @@ kubectl wait --for=condition=available --timeout=180s deployment/argocd-server -
 
 echo "==> 5. Application du app-of-apps (déploie les tenants + policies)"
 kubectl apply -f gitops/app-of-apps.yaml
+
+echo "==> 5b. Application des méta-Applications chaos + SLO"
+kubectl apply -f gitops/chaos-and-slo-apps.yaml
 
 echo ""
 echo "✅ Plateforme bootstrappée."
