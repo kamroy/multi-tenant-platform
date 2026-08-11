@@ -24,10 +24,12 @@ spec:
       kind: PodChaos
       jsonPointers:
         - /status
+        - /metadata/finalizers
     - group: chaos-mesh.org
       kind: NetworkChaos
       jsonPointers:
         - /status
+        - /metadata/finalizers
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
