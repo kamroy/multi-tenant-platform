@@ -17,11 +17,11 @@ spec:
         # Ratio de requêtes réussies (non-5xx) sur le total, par namespace tenant
         - record: tenant:sli_availability:ratio_rate5m
           expr: |
-            sum by (namespace) (
+            sum by (exported_namespace) (
               rate(nginx_ingress_controller_requests{status!~"5.."}[5m])
             )
             /
-            sum by (namespace) (
+            sum by (exported_namespace) (
               rate(nginx_ingress_controller_requests[5m])
             )
 
@@ -41,7 +41,7 @@ spec:
         - record: tenant:sli_latency_p95:5m
           expr: |
             histogram_quantile(0.95,
-              sum by (namespace, le) (
+              sum by (exported_namespace, le) (
                 rate(nginx_ingress_controller_request_duration_seconds_bucket[5m])
               )
             )
@@ -49,11 +49,11 @@ spec:
         # Ratio de requêtes sous le seuil de 300ms (SLO latence)
         - record: tenant:sli_latency_good:ratio_rate5m
           expr: |
-            sum by (namespace) (
+            sum by (exported_namespace) (
               rate(nginx_ingress_controller_request_duration_seconds_bucket{le="0.3"}[5m])
             )
             /
-            sum by (namespace) (
+            sum by (exported_namespace) (
               rate(nginx_ingress_controller_request_duration_seconds_count[5m])
             )
 

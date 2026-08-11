@@ -79,7 +79,7 @@ data:
           "title": "Latence p95 - team-a",
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
           "targets": [
-            { "expr": "tenant:sli_latency_p95:5m{namespace=\"team-a\"}" }
+            { "expr": "tenant:sli_latency_p95:5m{exported_namespace=\"team-a\"}" }
           ],
           "fieldConfig": { "defaults": { "unit": "s" } }
         },
@@ -88,7 +88,7 @@ data:
           "title": "Disponibilité dans le temps - team-a",
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
           "targets": [
-            { "expr": "tenant:sli_availability:ratio_rate5m{namespace=\"team-a\"} * 100" }
+            { "expr": "tenant:sli_availability:ratio_rate5m{exported_namespace=\"team-a\"} * 100" }
           ],
           "fieldConfig": { "defaults": { "unit": "percent" } }
         }

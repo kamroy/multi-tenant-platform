@@ -48,7 +48,7 @@ data:
     TENANT="team-a"
 
     # Récupère l'error budget restant (en %) pour le tenant
-    BUDGET=$(curl -sf "${PROM_URL}/api/v1/query?query=tenant:error_budget_remaining:ratio30d%7Bnamespace=%22${TENANT}%22%7D" \
+    BUDGET=$(curl -sf "${PROM_URL}/api/v1/query?query=tenant:error_budget_remaining:ratio30d%exported_namespace=%22${TENANT}%22%7D" \
       | grep -o '"value":\[[0-9.]*,"[0-9.]*"\]' \
       | sed 's/.*,"\(.*\)"\]/\1/' || echo "1")
 
