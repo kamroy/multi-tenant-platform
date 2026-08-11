@@ -21,12 +21,7 @@ spec:
       selfHeal: true
   ignoreDifferences:
     - group: chaos-mesh.org
-      kind: PodChaos
-      jsonPointers:
-        - /status
-        - /metadata/finalizers
-    - group: chaos-mesh.org
-      kind: NetworkChaos
+      kind: Schedule
       jsonPointers:
         - /status
         - /metadata/finalizers

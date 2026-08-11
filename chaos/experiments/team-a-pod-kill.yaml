@@ -1,22 +1,19 @@
-# Tue aléatoirement 1 pod sur 2 dans team-a toutes les 5 minutes.
-# Objectif : vérifier que le service reste disponible malgré la perte
-# d'un pod (réplication suffisante + readiness probes correctes).
-#
-# Prérequis : Chaos Mesh installé (voir scripts/bootstrap.sh)
-
 apiVersion: chaos-mesh.org/v1alpha1
-kind: PodChaos
+kind: Schedule
 metadata:
   name: team-a-pod-kill
   namespace: team-a
 spec:
-  action: pod-kill
-  mode: fixed-percent
-  value: "50"
-  selector:
-    namespaces:
-      - team-a
-    labelSelectors:
-      chaos-target: "true"   # opt-in explicite : seuls les workloads labellisés sont ciblés
-  scheduler:
-    cron: "@every 5m"
+  schedule: "@every 5m"
+  concurrencyPolicy: Forbid
+  historyLimit: 5
+  type: PodChaos
+  podChaos:
+    action: pod-kill
+    mode: fixed-percent
+    value: "50"
+    selector:
+      namespaces:
+        - team-a
+      labelSelectors:
+        chaos-target: "true"

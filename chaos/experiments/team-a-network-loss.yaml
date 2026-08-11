@@ -1,23 +1,22 @@
-# Simule 20% de perte de paquets pendant 2 minutes, toutes les 20 minutes.
-# Objectif : vérifier le comportement des retries/circuit breakers côté
-# client face à une dégradation réseau partielle (pas une coupure totale).
-
 apiVersion: chaos-mesh.org/v1alpha1
-kind: NetworkChaos
+kind: Schedule
 metadata:
   name: team-a-network-loss
   namespace: team-a
 spec:
-  action: loss
-  mode: all
-  selector:
-    namespaces:
-      - team-a
-    labelSelectors:
-      chaos-target: "true"
-  loss:
-    loss: "20"
-    correlation: "25"
-  duration: "2m"
-  scheduler:
-    cron: "@every 20m"
+  schedule: "@every 20m"
+  concurrencyPolicy: Forbid
+  historyLimit: 5
+  type: NetworkChaos
+  networkChaos:
+    action: loss
+    mode: all
+    selector:
+      namespaces:
+        - team-a
+      labelSelectors:
+        chaos-target: "true"
+    loss:
+      loss: "20"
+      correlation: "25"
+    duration: "2m"
