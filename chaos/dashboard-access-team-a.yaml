@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: account-team-a-manager
+  namespace: team-a
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: role-team-a-manager
+  namespace: team-a
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "namespaces"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: ["chaos-mesh.org"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: bind-team-a-manager
+  namespace: team-a
+subjects:
+  - kind: ServiceAccount
+    name: account-team-a-manager
+    namespace: team-a
+roleRef:
+  kind: Role
+  name: role-team-a-manager
+  apiGroup: rbac.authorization.k8s.io
