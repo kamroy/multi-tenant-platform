@@ -19,6 +19,15 @@ spec:
     automated:
       prune: true
       selfHeal: true
+  ignoreDifferences:
+    - group: chaos-mesh.org
+      kind: PodChaos
+      jsonPointers:
+        - /status
+    - group: chaos-mesh.org
+      kind: NetworkChaos
+      jsonPointers:
+        - /status
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
