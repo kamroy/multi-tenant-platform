@@ -71,7 +71,7 @@ spec:
               (1 - avg_over_time(
                 (tenant:sli_availability:ratio_rate5m
                  and tenant:sli_availability:ratio_rate5m == tenant:sli_availability:ratio_rate5m)
-                [30d]
+                [30d:1m]
               ))
               /
               (1 - 0.995)
