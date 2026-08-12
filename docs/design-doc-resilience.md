@@ -77,7 +77,7 @@ transforme un SLO abstrait en décision opérationnelle concrète.
    tenant, vérifie que les SLO de latence des dépendances sont respectés
 3. **Network loss** : simule 20% de perte de paquets, vérifie les retries/circuit breakers côté client
 
-## 8. Ce que ça démontre (angle recrutement)
+## 8. Ce que ça démontre
 
 - Compréhension du lien entre fiabilité mesurée (SLI/SLO) et décision
   opérationnelle (error budget policy), pas juste "on a mis un dashboard"
