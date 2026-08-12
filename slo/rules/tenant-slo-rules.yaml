@@ -62,10 +62,17 @@ spec:
       rules:
         # Error budget restant sur la fenêtre de 30 jours, en pourcentage.
         # 100% = aucun budget consommé, 0% = budget épuisé.
+        # Le filtre "== elle-même" élimine les échantillons NaN avant le
+        # avg_over_time : un seul NaN historique dans la fenêtre suffit
+        # sinon à rendre tout le résultat NaN de façon permanente.
         - record: tenant:error_budget_remaining:ratio30d
           expr: |
             1 - (
-              (1 - avg_over_time(tenant:sli_availability:ratio_rate5m[30d]))
+              (1 - avg_over_time(
+                (tenant:sli_availability:ratio_rate5m
+                 and tenant:sli_availability:ratio_rate5m == tenant:sli_availability:ratio_rate5m)
+                [30d]
+              ))
               /
               (1 - 0.995)
             )
